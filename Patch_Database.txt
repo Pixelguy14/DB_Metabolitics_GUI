@@ -1,0 +1,7 @@
+sqlite3 <path-to-database>/DataBase_Coffee.db
+
+ALTER TABLE Data_espectrometry ADD COLUMN Fragments_ions REAL;
+ALTER TABLE Data_espectrometry ADD COLUMN Ionization_mode TEXT;
+ALTER TABLE Data_espectrometry ADD COLUMN Structure BLOB;
+ALTER TABLE Data_espectrometry ADD COLUMN Extra_information TEXT;
+ALTER TABLE Data_espectrometry ADD COLUMN Reference TEXT;
