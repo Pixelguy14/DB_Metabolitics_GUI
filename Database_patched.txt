@@ -1,0 +1,15 @@
+sqlite3 DataBase_Coffee.db
+
+CREATE TABLE Data_espectrometry (
+    name TEXT,
+    RT REAL,
+    mz REAL,
+    Ion_type TEXT,
+    Ion_formula TEXT,
+    ppm REAL
+    Fragments_ions REAL;
+    Ionization_mode TEXT;
+    Structure BLOB;
+    Extra_information TEXT;
+    Reference TEXT;
+);
