@@ -1,27 +1,53 @@
 #  Copyright 2024 Jose Julian Sierra Alvarez <julian@julian-Lenovo-G50-30> coded on Linux
 # main.py
-import sqlite3
+import sqlite3 # Database
 import tkinter as tk
-from tkinter import PhotoImage
-import ttkbootstrap as ttk
+import ttkbootstrap as ttk # Interface
 from ttkbootstrap import Style
 from ttkbootstrap.tableview import Tableview
 from ttkbootstrap.dialogs import Messagebox
 from ttkbootstrap.constants import *
 from ttkbootstrap.scrolled import ScrolledFrame
 from os import path
-import icon #import of the icon.py file
+import icon # We import the icon.py file to this environment
 import configparser
-from tkinter import filedialog
+from tkinter import filedialog # Handling system file operations
+from PIL import Image, ImageTk # For blob to image handling
+from tkinter import Canvas, Frame
+import io
+import base64
 
-# Function that recieves db location and loads the database into the interface
+# F
+def display_from_blob(blob_data):
+	global Image_fill_frame
+	Image_fill_frame = ttk.Labelframe(Main_frame, text="Structure")
+	try:
+		# Convert BLOB to image
+		image = Image.open(io.BytesIO(blob_data))
+		photo = ImageTk.PhotoImage(image)
+		
+		Image_frame = Frame(Image_fill_frame)
+		Image_frame.pack(fill="both", expand="yes", padx=10, pady=10)
+		
+		# Create a Canvas to display the image
+		canvas = Canvas(Image_frame, width=photo.width(), height=photo.height())
+		canvas.create_image(0, 0, anchor='nw', image=photo)
+		canvas.image = photo  # Keep a reference to avoid garbage collection
+		canvas.pack()
+		
+	except Exception as e:
+		print(f"Error converting BLOB to image: {e}")
+
+
+# Function that searches db location and loads the database into the interface
 def load_db():
 	mb = Messagebox.show_warning("Enter a valid database for the system","Warning")
-	filename = filedialog.askopenfilename()
+	#filename = filedialog.askopenfilename()
+	filename = filedialog.askopenfilename(title="Select a Database (db)",filetypes=[("database", "*.db")])
 	#Has to be .db or it fails
 	while(filename.lower().endswith('.db') ==  False):
 		mb = Messagebox.show_error("Enter a valid database for the system","Error!")
-		filename = filedialog.askopenfilename()
+		filename = filedialog.askopenfilename(title="Select a Database (db)",filetypes=[("database", "*.db")])
 	config_writer = configparser.ConfigParser()
 	config_writer['default'] = {
 		'db_location' : filename
@@ -30,7 +56,7 @@ def load_db():
 		config_writer.write(configfile)
 	mb = Messagebox.show_info("Database added correctly","LABI 2024")
 
-# Function that searches for the db file and saves its location		
+# Function that recieves the db file and saves its location		
 def verify_init():
 	global config_reader
 	config_reader = configparser.ConfigParser()
@@ -49,7 +75,25 @@ def element_selection(event):
 	SelectStr = dt.get_rows(selected=True)
 	if dt.view.selection():
 		tabPosition = dt.view.index(dt.view.selection()[0])
-	#print (tabPosition)
+		#print (tabPosition)
+		#row_data = dt.view.item(dt.view.selection()[0], 'values')
+		BLOB_Structure_data = SelectStr[0].values[9]
+		if 'Image_fill_frame' in globals() and Image_fill_frame.winfo_exists():
+			Image_fill_frame.destroy()
+		#print(f"Structure: {BLOB_Structure_data[:50]}...")
+		if isinstance(BLOB_Structure_data, str):
+			try:
+				BLOB_Structure_data = base64.b64decode(BLOB_Structure_data)
+				#print("is decoded")
+			except Exception as e:
+				print(f"Error decoding BLOB data: {e}")
+		if isinstance(BLOB_Structure_data, bytes):
+			#print(f"Structure as BLOB: {BLOB_Structure_data[:50]}...")
+			display_from_blob(BLOB_Structure_data) # Blob to image and display
+			Image_fill_frame.pack(padx = 20, pady = (10,20))
+			Image_fill_frame.update_idletasks()
+			Main_frame.yview_moveto(1)
+		
 	if Add_btn["text"] == "Add":
 		if Edit_btn["text"] == "Edit":
 			Delete_btn.config(state="normal")
@@ -67,16 +111,19 @@ def headers_db():
 			dt.insert_column('end',text=str(i[j]), stretch=False) # Insert columns after the table has been created
 			dt.load_table_data()
 
+#image_dict = {}
 # Function that fills the tk table with data retrieved from the database
 def filling():
 	dt.delete_rows()
-	query = 'SELECT * FROM '+tablename+';'
+	query = 'SELECT * FROM ' + tablename + ';'
 	cursor = sqliteConnection.execute(query)
-	for i in cursor:
-		strRow = [str(j) for j in i]
+	for idx, row in enumerate(cursor):
+		strRow = [str(j) for j in row]
 		dt.insert_row('end', strRow)
-	dt.pack(fill=BOTH, expand=NO, padx=10, pady=10)
+	dt.pack(fill=BOTH, expand=True, padx=10, pady=10)
 	dt.load_table_data() # dt.unload_table_data()
+	dt.hide_selected_column(cid = 9)
+	dt.autofit_columns()
 
 # Function that creates an alert to make sure the user wants to delete a row from the table
 def delete_warning():
@@ -118,8 +165,8 @@ def data_fill_func():
 	
 	db_Fragments_Ions_data = tk.DoubleVar()
 	db_Ionization_mode_data = tk.StringVar()
-	''' por ahora dejamos que sea string pero se tiene que modificar '''
-	db_Structure_data = tk.StringVar() 
+	#db_Structure_data = tk.StringVar() 
+	db_Structure_data = BlobData()
 	db_Extra_Information_data = tk.StringVar()
 	db_Reference_data = tk.StringVar()
 	# Data info frame interface
@@ -239,13 +286,20 @@ def add_db ():
 	# db_Fragments_Ions_data, db_Ionization_mode_data, db_Structure_data, db_Extra_Information_data, db_Reference_data
 	D7 = str(db_Fragments_Ions_data.get())
 	D8 = str(db_Ionization_mode_data.get())
-	D9 = str(db_Structure_data.get())
+	#D9 = str(db_Structure_data.get())
+	D9 = db_Structure_data.get()
+	if isinstance(D9, bytes):
+		D9 = base64.b64encode(D9).decode('utf-8')
 	D10 = str(db_Extra_Information_data.get())
 	D11 = str(db_Reference_data.get())
 	#query= 'INSERT INTO '+tablename+' (name, RT, mz, Ion_type, Ion_formula, ppm) VALUES ("'+D1+'","'+D2+'","'+D3+'","'+D4+'","'+D5+'","'+D6+'");'
-	query= 'INSERT INTO '+tablename+' (name, RT, mz, Ion_type, Ion_formula, ppm, Fragments_ions, Ionization_mode, Structure, Extra_information, Reference) VALUES ("'+D1+'","'+D2+'","'+D3+'","'+D4+'","'+D5+'","'+D6+'","'+D7+'","'+D8+'","'+D9+'","'+D10+'","'+D11+'");'
+	#query= 'INSERT INTO '+tablename+' (name, RT, mz, Ion_type, Ion_formula, ppm, Fragments_ions, Ionization_mode, Structure, Extra_information, Reference) VALUES ("'+D1+'","'+D2+'","'+D3+'","'+D4+'","'+D5+'","'+D6+'","'+D7+'","'+D8+'","'+D9+'","'+D10+'","'+D11+'");'
+	query = '''INSERT INTO {} (name, RT, mz, Ion_type, Ion_formula, ppm, Fragments_ions, Ionization_mode, Structure, Extra_information, Reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''.format(tablename)
+	
+	data_tuple = (D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11)
 	print(query)
-	cursor = sqliteConnection.execute(query)
+	cursor = sqliteConnection.execute(query,data_tuple)
+	#cursor.execute(query,data_tuple)
 	sqliteConnection.commit() # Commit is necessary for doing the changes inside the database
 	Add_btn.config(text = "Add")
 	Add_btn.config(style = "success.Outline.TButton")
@@ -279,7 +333,8 @@ def edit_dialog():
 		# db_Fragments_Ions_data, db_Ionization_mode_data, db_Structure_data, db_Extra_Information_data, db_Reference_data
 		db_Fragments_Ions_data.set(SelectStr[0].values[7])
 		db_Ionization_mode_data.set(SelectStr[0].values[8])
-		db_Structure_data.set(SelectStr[0].values[9])
+		#db_Structure_data.set(SelectStr[0].values[9]) # needed a conversion from str to bytes
+		db_Structure_data.set(base64.b64decode(SelectStr[0].values[9]))
 		db_Extra_Information_data.set(SelectStr[0].values[10])
 		db_Reference_data.set(SelectStr[0].values[11])
 		
@@ -311,24 +366,22 @@ def edit_db():
 	# db_Fragments_Ions_data, db_Ionization_mode_data, db_Structure_data, db_Extra_Information_data, db_Reference_data
 	D7 = str(db_Fragments_Ions_data.get())
 	D8 = str(db_Ionization_mode_data.get())
-	D9 = str(db_Structure_data.get())
+	#D9 = str(db_Structure_data.get())
+	D9 = db_Structure_data.get()
+	if isinstance(D9, bytes):
+		D9 = base64.b64encode(D9).decode('utf-8')
 	D10 = str(db_Extra_Information_data.get())
 	D11 = str(db_Reference_data.get())
 	query = 'SELECT name FROM pragma_table_info ('+tablename+') ORDER BY cid LIMIT 1;'
 	cursor = sqliteConnection.execute(query)
 	table_id =cursor.fetchall()
 	#query= 'UPDATE '+tablename+' SET name="'+D1+'", RT='+D2+', mz='+D3+', Ion_type="'+D4+'", Ion_formula="'+D5+'", ppm='+D6+' WHERE "'+table_id[0][0]+'" = '+id_selected+';'
-	query = (
-		'UPDATE ' + tablename + 
-		' SET name="' + D1 + '", RT=' + D2 + ', mz=' + D3 + 
-		', Ion_type="' + D4 + '", Ion_formula="' + D5 + '", ppm=' + D6 + 
-		', Fragments_ions="' + D7 + '", Ionization_mode="' + D8 + 
-		'", Structure="' + D9 + '", Extra_information="' + D10 + 
-		'", Reference="' + D11 + 
-		'" WHERE "' + table_id[0][0] + '" = ' + id_selected + ';'
-	)
+	query = '''UPDATE {} 
+			SET name = ?, RT = ?, mz = ?, Ion_type = ?, Ion_formula = ?, ppm = ?, Fragments_ions = ?, Ionization_mode = ?, Structure = ?, Extra_information = ?, Reference = ? 
+			WHERE {} = ?'''.format(tablename, table_id[0][0])
+	data_tuple = (D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, D11, id_selected)
 	print(query)
-	cursor = sqliteConnection.execute(query)
+	cursor = sqliteConnection.execute(query,data_tuple)
 	sqliteConnection.commit() 
 	Edit_btn.config(text = "Edit")
 	Edit_btn.config(style = "info.Outline.TButton")
@@ -353,7 +406,39 @@ def validate_float(value):
    
 # Function that handles the selection of an image     
 def Structure_image ():
-	db_Structure_data.set("test000")
+	#db_Structure_data.set("test000")
+	# Open file dialog to select an image
+	filename = filedialog.askopenfilename(title="Select an Image file!",filetypes=[("Image files", "*.jpg *.jpeg *.png *.bmp")])
+
+	if filename:
+		try:
+			image = Image.open(filename)
+			# Resize the image to a height of 256 pixels while maintaining aspect ratio
+			aspect_ratio = image.width / image.height
+			# new_height = 256 #new_height = 512
+			new_height = 128 #new_height = 512
+			new_width = int(new_height * aspect_ratio)
+			resized_image = image.resize((new_width, new_height), Image.LANCZOS)
+			# Read the image file and convert it to BLOB
+			with io.BytesIO() as output:
+				resized_image.save(output, format=image.format)
+				blob_data = output.getvalue()
+			# Save the BLOB to db_Structure_data
+			db_Structure_data.set(blob_data)
+			#print (blob_data)
+			print("Image successfully saved as BLOB.")
+		except Exception as e:
+			print(f"Error saving image as BLOB: {e}")
+
+class BlobData:
+	def __init__(self):
+		self.data = None
+		
+	def set(self, data):
+		self.data = data
+		
+	def get(self):
+		return self.data
 
 # Creation of the main window frame
 window = ttk.Window(
@@ -385,8 +470,8 @@ try:
 		bootstyle = PRIMARY,
 		autofit = True,
 		autoalign = True,
-		pagesize = 15,
-		height = 15
+		pagesize = 10,
+		height = 10
 	)
 	## Data inserts on the table
 	# Creation of columns for the table
